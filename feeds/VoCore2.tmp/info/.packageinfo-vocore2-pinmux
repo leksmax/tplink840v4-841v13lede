@@ -1,0 +1,19 @@
+Source-Makefile: feeds/VoCore2/vocore2-pinmux/Makefile
+Package: mtk-pinmux
+Version: 1
+Depends: +libc +SSP_SUPPORT:libssp +USE_GLIBC:librt +USE_GLIBC:libpthread @TARGET_ramips_mt7688_LinkIt7688||@TARGET_ramips_mt7628
+Conflicts: 
+Menu-Depends: 
+Provides: 
+Section: ralink
+Category: Ralink SDK
+Repository: base
+Title: MTK pinmux and reclk utilities
+Maintainer: 
+Source: 
+Type: ipkg
+Description: MTK pinmux and reclk utilities
+
+@@
+
+
