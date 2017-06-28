@@ -36,8 +36,11 @@ the lack of case sensitiveness in the file system.
 ==============================================
 здесь  мак   берется  из  фактори и  не  меняеться- наверное  починю
 ==============================================
+позже  выложу  патчи  для  люси - статус  подключенных  устройств
+==============================================
 
  how-to  use:
+ ============================================
  
  make distclean
  
@@ -48,7 +51,7 @@ the lack of case sensitiveness in the file system.
  make kernel_menuconfig
  
   make  -j"$(getconf _NPROCESSORS_ONLN 2> /dev/null)" V=99 2>&1 | tee build.log | grep -i error
-  ============================================
+ 
 ## Donation
 If this project help you reduce time to develop, you can give me a cup of coffee :) 
 
