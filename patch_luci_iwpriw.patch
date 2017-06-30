@@ -1,0 +1,2323 @@
+diff -ruN ../kt841lede/feeds/luci/applications/luci-app-adblock/luasrc/model/cbi/adblock/overview_tab.lua feeds/luci/applications/luci-app-adblock/luasrc/model/cbi/adblock/overview_tab.lua
+--- ../kt841lede/feeds/luci/applications/luci-app-adblock/luasrc/model/cbi/adblock/overview_tab.lua	2017-06-27 09:23:18.007931483 +0500
++++ feeds/luci/applications/luci-app-adblock/luasrc/model/cbi/adblock/overview_tab.lua	2017-06-30 10:42:08.019931483 +0500
+@@ -6,9 +6,25 @@
+ local sys = require("luci.sys")
+ local json = require("luci.jsonc")
+ local adbinput = uci.get("adblock", "global", "adb_rtfile") or "/tmp/adb_runtime.json"
+-local parse = json.parse(fs.readfile(adbinput) or "")
+-local dnsFile1 = sys.exec("find '/tmp/dnsmasq.d/.adb_hidden' -maxdepth 1 -type f -name 'adb_list*' -print 2>/dev/null")
+-local dnsFile2 = sys.exec("find '/var/lib/unbound/.adb_hidden' -maxdepth 1 -type f -name 'adb_list*' -print 2>/dev/null")
++local dnspath = uci.get("adblock", "global", "adb_dnsdir") or ""
++local parse = json.parse(fs.readfile(adbinput))
++if parse ~= nil then
++	version = parse.data.adblock_version
++	domains = parse.data.blocked_domains
++	fetch = parse.data.fetch_info
++	backend = parse.data.dns_backend
++	rundate = parse.data.last_rundate
++	if dnspath == "" then
++		if backend == "dnsmasq" then
++			dnspath = "/tmp/dnsmasq.d"
++		elseif backend == "unbound" then
++			dnspath = "/var/lib/unbound"
++		elseif backend == "named" then
++			dnspath = "/var/lib/bind"
++		end
++	end
++end
++local dnsfile = dnspath .. "/.adb_hidden/adb_list.overall"
+ 
+ m = Map("adblock", translate("Adblock"),
+ 	translate("Configuration of the adblock package to block ad/abuse domains by using DNS. ")
+@@ -36,7 +52,7 @@
+ o1.rmempty = false
+ 
+ btn = s:option(Button, "", translate("Suspend / Resume adblock"))
+-if dnsFile1 ~= "" or dnsFile2 ~= "" then
++if parse ~= nil and nixio.fs.access(dnsfile) then
+ 	btn.inputtitle = translate("Resume adblock")
+ 	btn.inputstyle = "apply"
+ 	btn.disabled = false
+@@ -78,52 +94,53 @@
+ dv1.template = "adblock/runtime"
+ if parse == nil then
+ 	dv1.value = translate("n/a")
+-elseif parse.data.blocked_domains == "0" then
++elseif domains == "0" then
+ 	dv1.value = translate("no domains blocked")
+-elseif dnsFile1 ~= "" or dnsFile2 ~= "" then
++elseif nixio.fs.access(dnsfile) then
+ 	dv1.value = translate("suspended")
+ else
+ 	dv1.value = translate("active")
+ end
++
+ dv2 = s:option(DummyValue, "adblock_version", translate("Adblock version"))
+ dv2.template = "adblock/runtime"
+-if parse ~= nil then
+-	dv2.value = parse.data.adblock_version or translate("n/a")
+-else
++if parse == nil then
+ 	dv2.value = translate("n/a")
++else
++	dv2.value = version
+ end
+ 
+ dv3 = s:option(DummyValue, "fetch_info", translate("Download Utility (SSL Library)"),
+ 	translate("For SSL protected blocklist sources you need a suitable SSL library, e.g. 'libustream-ssl' or the wget 'built-in'."))
+ dv3.template = "adblock/runtime"
+-if parse ~= nil then
+-	dv3.value = parse.data.fetch_info or translate("n/a")
+-else
++if parse == nil then
+ 	dv3.value = translate("n/a")
++else
++	dv3.value = fetch
+ end
+ 
+ dv4 = s:option(DummyValue, "dns_backend", translate("DNS backend"))
+ dv4.template = "adblock/runtime"
+-if parse ~= nil then
+-	dv4.value = parse.data.dns_backend or translate("n/a")
+-else
++if parse == nil then
+ 	dv4.value = translate("n/a")
++else
++	dv4.value = backend
+ end
+ 
+ dv5 = s:option(DummyValue, "blocked_domains", translate("Blocked domains (overall)"))
+ dv5.template = "adblock/runtime"
+-if parse ~= nil then
+-	dv5.value = parse.data.blocked_domains or translate("n/a")
+-else
++if parse == nil then
+ 	dv5.value = translate("n/a")
++else
++	dv5.value = domains
+ end
+ 
+ dv6 = s:option(DummyValue, "last_rundate", translate("Last rundate"))
+ dv6.template = "adblock/runtime"
+-if parse ~= nil then
+-	dv6.value = parse.data.last_rundate or translate("n/a")
+-else
++if parse == nil then
+ 	dv6.value = translate("n/a")
++else
++	dv6.value = rundate
+ end
+ 
+ -- Blocklist table
+diff -ruN ../kt841lede/feeds/luci/.git/FETCH_HEAD feeds/luci/.git/FETCH_HEAD
+--- ../kt841lede/feeds/luci/.git/FETCH_HEAD	2017-06-27 16:15:10.771931483 +0500
++++ feeds/luci/.git/FETCH_HEAD	1970-01-01 05:00:00.000000000 +0500
+@@ -1 +0,0 @@
+-de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a		branch 'master' of https://git.lede-project.org/project/luci
+Binary files ../kt841lede/feeds/luci/.git/index and feeds/luci/.git/index differ
+diff -ruN ../kt841lede/feeds/luci/.git/logs/HEAD feeds/luci/.git/logs/HEAD
+--- ../kt841lede/feeds/luci/.git/logs/HEAD	2017-06-27 09:23:17.987931483 +0500
++++ feeds/luci/.git/logs/HEAD	2017-06-30 10:42:07.999931483 +0500
+@@ -1 +1 @@
+-0000000000000000000000000000000000000000 de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a leksmax <i9300aleks@gmail.com> 1498537397 +0500	clone: from https://git.lede-project.org/project/luci.git
++0000000000000000000000000000000000000000 2dc60d2b440564b1e8ed4497fe841706354ca539 leksmax <i9300aleks@gmail.com> 1498801327 +0500	clone: from https://git.lede-project.org/project/luci.git
+diff -ruN ../kt841lede/feeds/luci/.git/logs/refs/heads/master feeds/luci/.git/logs/refs/heads/master
+--- ../kt841lede/feeds/luci/.git/logs/refs/heads/master	2017-06-27 09:23:17.987931483 +0500
++++ feeds/luci/.git/logs/refs/heads/master	2017-06-30 10:42:07.999931483 +0500
+@@ -1 +1 @@
+-0000000000000000000000000000000000000000 de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a leksmax <i9300aleks@gmail.com> 1498537397 +0500	clone: from https://git.lede-project.org/project/luci.git
++0000000000000000000000000000000000000000 2dc60d2b440564b1e8ed4497fe841706354ca539 leksmax <i9300aleks@gmail.com> 1498801327 +0500	clone: from https://git.lede-project.org/project/luci.git
+diff -ruN ../kt841lede/feeds/luci/.git/logs/refs/remotes/origin/HEAD feeds/luci/.git/logs/refs/remotes/origin/HEAD
+--- ../kt841lede/feeds/luci/.git/logs/refs/remotes/origin/HEAD	2017-06-27 09:23:17.987931483 +0500
++++ feeds/luci/.git/logs/refs/remotes/origin/HEAD	2017-06-30 10:42:07.999931483 +0500
+@@ -1 +1 @@
+-0000000000000000000000000000000000000000 de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a leksmax <i9300aleks@gmail.com> 1498537397 +0500	clone: from https://git.lede-project.org/project/luci.git
++0000000000000000000000000000000000000000 2dc60d2b440564b1e8ed4497fe841706354ca539 leksmax <i9300aleks@gmail.com> 1498801327 +0500	clone: from https://git.lede-project.org/project/luci.git
+Binary files ../kt841lede/feeds/luci/.git/objects/pack/pack-13dfed8bece176bdd5689e36f7e37e77ede96b77.idx and feeds/luci/.git/objects/pack/pack-13dfed8bece176bdd5689e36f7e37e77ede96b77.idx differ
+Binary files ../kt841lede/feeds/luci/.git/objects/pack/pack-13dfed8bece176bdd5689e36f7e37e77ede96b77.pack and feeds/luci/.git/objects/pack/pack-13dfed8bece176bdd5689e36f7e37e77ede96b77.pack differ
+Binary files ../kt841lede/feeds/luci/.git/objects/pack/pack-e98cfd430d0e462cf6acbc575af4344eea6e0d81.idx and feeds/luci/.git/objects/pack/pack-e98cfd430d0e462cf6acbc575af4344eea6e0d81.idx differ
+Binary files ../kt841lede/feeds/luci/.git/objects/pack/pack-e98cfd430d0e462cf6acbc575af4344eea6e0d81.pack and feeds/luci/.git/objects/pack/pack-e98cfd430d0e462cf6acbc575af4344eea6e0d81.pack differ
+diff -ruN ../kt841lede/feeds/luci/.git/ORIG_HEAD feeds/luci/.git/ORIG_HEAD
+--- ../kt841lede/feeds/luci/.git/ORIG_HEAD	2017-06-27 16:05:59.543931483 +0500
++++ feeds/luci/.git/ORIG_HEAD	1970-01-01 05:00:00.000000000 +0500
+@@ -1 +0,0 @@
+-de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a
+diff -ruN ../kt841lede/feeds/luci/.git/packed-refs feeds/luci/.git/packed-refs
+--- ../kt841lede/feeds/luci/.git/packed-refs	2017-06-27 09:23:17.987931483 +0500
++++ feeds/luci/.git/packed-refs	2017-06-30 10:42:07.995931483 +0500
+@@ -1,2 +1,2 @@
+ # pack-refs with: peeled fully-peeled 
+-de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a refs/remotes/origin/master
++2dc60d2b440564b1e8ed4497fe841706354ca539 refs/remotes/origin/master
+diff -ruN ../kt841lede/feeds/luci/.git/refs/heads/master feeds/luci/.git/refs/heads/master
+--- ../kt841lede/feeds/luci/.git/refs/heads/master	2017-06-27 09:23:17.987931483 +0500
++++ feeds/luci/.git/refs/heads/master	2017-06-30 10:42:07.999931483 +0500
+@@ -1 +1 @@
+-de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a
++2dc60d2b440564b1e8ed4497fe841706354ca539
+diff -ruN ../kt841lede/feeds/luci/.git/shallow feeds/luci/.git/shallow
+--- ../kt841lede/feeds/luci/.git/shallow	2017-06-27 09:23:17.279931483 +0500
++++ feeds/luci/.git/shallow	2017-06-30 10:42:03.111931483 +0500
+@@ -1 +1 @@
+-de2e92a1f4f80d1d4f3119efb2c4cb0d10f01b9a
++2dc60d2b440564b1e8ed4497fe841706354ca539
+diff -ruN ../kt841lede/feeds/luci/iwpriv_stainfo.lua feeds/luci/iwpriv_stainfo.lua
+--- ../kt841lede/feeds/luci/iwpriv_stainfo.lua	2017-06-27 13:10:53.851931483 +0500
++++ feeds/luci/iwpriv_stainfo.lua	1970-01-01 05:00:00.000000000 +0500
+@@ -1,157 +0,0 @@
+--- 23.06.2017 developed by Defender bleaksoft.ru
+-local iwpriv_stainfo = {}
+-
+-function iwpriv_stainfo.lines(str)
+-  local t = {}
+-  local function helper(line) table.insert(t, line) return "" end
+-  helper((str:gsub("(.-)\r?\n", helper)))
+-  return t
+-end
+-
+-function iwpriv_stainfo.getClients()
+-	f=io.popen("dmesg -c")
+-	s=f:read("*a")
+-	f:close()
+-	os.execute("iwpriv ra0 show stainfo")
+-	f=io.popen("dmesg|tail -30")
+-	s=f:read("*a")
+-	f:close()
+-	--print(s)
+-	tabl = iwpriv_stainfo.lines(s)
+-	--print #tabl
+-	table_length = 0
+-	for i,v in pairs(tabl) do 
+-		--print(v) 
+-		table_length = table_length + 1
+-	end
+-	--print(table_length)
+-	table_start_index = 0
+-	for i=table_length-1,0,-1 do
+-		--print (tabl[i])
+-		if tabl[i] then 
+-			--result = string.gmatch(tabl[i], "[^%s]+")
+-			--print (result)
+-			--print (i .. " " .. tabl[i])
+-			if(string.find(tabl[i],"RSSI0/1/2")) then
+-				--print(tabl[i])
+-				table_start_index = i
+-				--print ("Finded "..i)
+-				break 
+-			end
+-			--for token in string.gmatch(tabl[i], "[^(.*?)MAC(.*)]+") do
+-			--	print(token)
+-			--end	
+-		end
+-	end
+-	--print ("----------------")
+-	sta_records = {}
+-	rec_count = 0
+-	for i=table_start_index+1,table_length do
+-		--print(tabl[i])
+-		c = 0
+-		is_mac_record = 0
+-		sta_record = {}
+-		for token in string.gmatch(tabl[i], "[^%s]+") do
+-			if c == 2 then 
+-				octets = 0
+-				for token2 in string.gmatch(token, "[^\:]+") do
+-					octets = octets+1
+-				end
+-				if octets == 6 then 
+-					is_mac_record = 1
+-					--print ("String " .. i .. " " .. token)
+-					--table.insert(sta_records, token)
+-				end
+-			end
+-			
+-			if is_mac_record == 1 and c == 2 then 
+-				sta_record['mac'] = string.lower(token)
+-			end
+-			if is_mac_record == 1 and c == 3 then 
+-				sta_record['mode'] = token
+-			end
+-			if is_mac_record == 1 and c == 4 then 
+-				sta_record['bss'] = token
+-			end
+-			if is_mac_record == 1 and c == 5 then 
+-				sta_record['psm'] = token
+-			end
+-			if is_mac_record == 1 and c == 6 then 
+-				sta_record['wmm'] = token
+-			end
+-			if is_mac_record == 1 and c == 7 then 
+-				sta_record['mimops'] = token
+-			end
+-			if is_mac_record == 1 and c == 8 then 
+-				sta_record['rssi'] = token
+-			end
+-			if is_mac_record == 1 and c == 9 then 
+-				sta_record['phmd'] = token
+-			end
+-			if is_mac_record == 1 and c == 10 then 
+-				sta_record['bw'] = token
+-			end
+-			if is_mac_record == 1 and c == 11 then 
+-				sta_record['mcs'] = token
+-			end
+-			if is_mac_record == 1 and c == 12 then 
+-				sta_record['sgi'] = token
+-			end
+-			if is_mac_record == 1 and c == 13 then 
+-				sta_record['stbc'] = token
+-			end
+-			if is_mac_record == 1 and c == 14 then 
+-				sta_record['idle'] = token
+-			end
+-			if is_mac_record == 1 and c == 15 then 
+-				sta_record['rate'] = token
+-			end
+-			c = c + 1
+-		end
+-		if is_mac_record == 1 then 
+-			table.insert(sta_records, sta_record)
+-			rec_count = rec_count + 1
+-		end
+-	end
+-	
+-	f=io.popen("cat /tmp/dhcp.leases")
+-	clients_list = f:read("*a")
+-	f:close()
+-
+-	devices = {}
+-	client_table = iwpriv_stainfo.lines(clients_list)
+-	for i,v in pairs(client_table) do 
+-		--print(v) 
+-		c = 0
+-		device_record = {}
+-		for token in string.gmatch(client_table[i], "[^%s]+") do
+-			if c == 1 then
+-				device_record['mac'] = token
+-			end
+-			if c == 2 then
+-				device_record['ip'] = token
+-			end
+-			if c == 3 then
+-				device_record['name'] = token
+-			end
+-			c = c + 1
+-		end
+-		table.insert(devices,device_record)
+-	end
+-	  
+-	for i,line in ipairs(sta_records) do
+-		for j,line2 in ipairs(devices) do
+-			if line['mac'] == line2['mac'] then
+-				line['ip'] = line2['ip']
+-				line['device_name'] = line2['name']
+-				sta_records[i]['ip'] = line2['ip']
+-				sta_records[i]['device_name'] = line2['name']
+-			end
+-		end
+-		--print("Name " .. line['device_name'] .. ", ip " .. line['ip'] .. ", mac " .. line['mac'] .. ", mode " .. line['mode'] .. ", bss " .. line['bss'] .. ", psm " .. line['psm'] .. ", rssi " .. line['rssi'])
+-	end
+-	
+-	return sta_records
+-end
+-
+-return iwpriv_stainfo
+\ No newline at end of file
+diff -ruN ../kt841lede/feeds/luci/modules/luci-base/luasrc/model/iwpriv_stainfo.lua feeds/luci/modules/luci-base/luasrc/model/iwpriv_stainfo.lua
+--- ../kt841lede/feeds/luci/modules/luci-base/luasrc/model/iwpriv_stainfo.lua	2017-06-27 13:11:55.327931483 +0500
++++ feeds/luci/modules/luci-base/luasrc/model/iwpriv_stainfo.lua	1970-01-01 05:00:00.000000000 +0500
+@@ -1,157 +0,0 @@
+--- 23.06.2017 developed by Defender bleaksoft.ru
+-local iwpriv_stainfo = {}
+-
+-function iwpriv_stainfo.lines(str)
+-  local t = {}
+-  local function helper(line) table.insert(t, line) return "" end
+-  helper((str:gsub("(.-)\r?\n", helper)))
+-  return t
+-end
+-
+-function iwpriv_stainfo.getClients()
+-	f=io.popen("dmesg -c")
+-	s=f:read("*a")
+-	f:close()
+-	os.execute("iwpriv ra0 show stainfo")
+-	f=io.popen("dmesg|tail -30")
+-	s=f:read("*a")
+-	f:close()
+-	--print(s)
+-	tabl = iwpriv_stainfo.lines(s)
+-	--print #tabl
+-	table_length = 0
+-	for i,v in pairs(tabl) do 
+-		--print(v) 
+-		table_length = table_length + 1
+-	end
+-	--print(table_length)
+-	table_start_index = 0
+-	for i=table_length-1,0,-1 do
+-		--print (tabl[i])
+-		if tabl[i] then 
+-			--result = string.gmatch(tabl[i], "[^%s]+")
+-			--print (result)
+-			--print (i .. " " .. tabl[i])
+-			if(string.find(tabl[i],"RSSI0/1/2")) then
+-				--print(tabl[i])
+-				table_start_index = i
+-				--print ("Finded "..i)
+-				break 
+-			end
+-			--for token in string.gmatch(tabl[i], "[^(.*?)MAC(.*)]+") do
+-			--	print(token)
+-			--end	
+-		end
+-	end
+-	--print ("----------------")
+-	sta_records = {}
+-	rec_count = 0
+-	for i=table_start_index+1,table_length do
+-		--print(tabl[i])
+-		c = 0
+-		is_mac_record = 0
+-		sta_record = {}
+-		for token in string.gmatch(tabl[i], "[^%s]+") do
+-			if c == 2 then 
+-				octets = 0
+-				for token2 in string.gmatch(token, "[^\:]+") do
+-					octets = octets+1
+-				end
+-				if octets == 6 then 
+-					is_mac_record = 1
+-					--print ("String " .. i .. " " .. token)
+-					--table.insert(sta_records, token)
+-				end
+-			end
+-			
+-			if is_mac_record == 1 and c == 2 then 
+-				sta_record['mac'] = string.lower(token)
+-			end
+-			if is_mac_record == 1 and c == 3 then 
+-				sta_record['mode'] = token
+-			end
+-			if is_mac_record == 1 and c == 4 then 
+-				sta_record['bss'] = token
+-			end
+-			if is_mac_record == 1 and c == 5 then 
+-				sta_record['psm'] = token
+-			end
+-			if is_mac_record == 1 and c == 6 then 
+-				sta_record['wmm'] = token
+-			end
+-			if is_mac_record == 1 and c == 7 then 
+-				sta_record['mimops'] = token
+-			end
+-			if is_mac_record == 1 and c == 8 then 
+-				sta_record['rssi'] = token
+-			end
+-			if is_mac_record == 1 and c == 9 then 
+-				sta_record['phmd'] = token
+-			end
+-			if is_mac_record == 1 and c == 10 then 
+-				sta_record['bw'] = token
+-			end
+-			if is_mac_record == 1 and c == 11 then 
+-				sta_record['mcs'] = token
+-			end
+-			if is_mac_record == 1 and c == 12 then 
+-				sta_record['sgi'] = token
+-			end
+-			if is_mac_record == 1 and c == 13 then 
+-				sta_record['stbc'] = token
+-			end
+-			if is_mac_record == 1 and c == 14 then 
+-				sta_record['idle'] = token
+-			end
+-			if is_mac_record == 1 and c == 15 then 
+-				sta_record['rate'] = token
+-			end
+-			c = c + 1
+-		end
+-		if is_mac_record == 1 then 
+-			table.insert(sta_records, sta_record)
+-			rec_count = rec_count + 1
+-		end
+-	end
+-	
+-	f=io.popen("cat /tmp/dhcp.leases")
+-	clients_list = f:read("*a")
+-	f:close()
+-
+-	devices = {}
+-	client_table = iwpriv_stainfo.lines(clients_list)
+-	for i,v in pairs(client_table) do 
+-		--print(v) 
+-		c = 0
+-		device_record = {}
+-		for token in string.gmatch(client_table[i], "[^%s]+") do
+-			if c == 1 then
+-				device_record['mac'] = token
+-			end
+-			if c == 2 then
+-				device_record['ip'] = token
+-			end
+-			if c == 3 then
+-				device_record['name'] = token
+-			end
+-			c = c + 1
+-		end
+-		table.insert(devices,device_record)
+-	end
+-	  
+-	for i,line in ipairs(sta_records) do
+-		for j,line2 in ipairs(devices) do
+-			if line['mac'] == line2['mac'] then
+-				line['ip'] = line2['ip']
+-				line['device_name'] = line2['name']
+-				sta_records[i]['ip'] = line2['ip']
+-				sta_records[i]['device_name'] = line2['name']
+-			end
+-		end
+-		--print("Name " .. line['device_name'] .. ", ip " .. line['ip'] .. ", mac " .. line['mac'] .. ", mode " .. line['mode'] .. ", bss " .. line['bss'] .. ", psm " .. line['psm'] .. ", rssi " .. line['rssi'])
+-	end
+-	
+-	return sta_records
+-end
+-
+-return iwpriv_stainfo
+\ No newline at end of file
+diff -ruN ../kt841lede/feeds/luci/modules/luci-base/luasrc/tools/status.lua feeds/luci/modules/luci-base/luasrc/tools/status.lua
+--- ../kt841lede/feeds/luci/modules/luci-base/luasrc/tools/status.lua	2017-06-27 11:59:11.583931483 +0500
++++ feeds/luci/modules/luci-base/luasrc/tools/status.lua	2017-06-30 10:42:08.267931483 +0500
+@@ -107,17 +107,10 @@
+ 	return dhcp_leases_common(6)
+ end
+ 
+-function getWiFiClients()
+-	local iwpriv_stainfo = require "luci.model.iwpriv_stainfo"
+-	sta_records = iwpriv_stainfo.getClients()
+-	return sta_records
+-end
+-
+ function wifi_networks()
+ 	local rv = { }
+ 	local ntm = require "luci.model.network".init()
+-	local iwpriv_stainfo = require "luci.model.iwpriv_stainfo"
+-	sta_records = iwpriv_stainfo.getClients()
++
+ 	local dev
+ 	for _, dev in ipairs(ntm:get_wifidevs()) do
+ 		local rd = {
+@@ -126,7 +119,7 @@
+ 			name     = dev:get_i18n(),
+ 			networks = { }
+ 		}
+-	
++
+ 		local net
+ 		for _, net in ipairs(dev:get_wifinets()) do
+ 			rd.networks[#rd.networks+1] = {
+@@ -145,7 +138,6 @@
+ 				bitrate    = net:bitrate(),
+ 				ifname     = net:ifname(),
+ 				assoclist  = net:assoclist(),
+-				assoclist_iwpriv = sta_records, 
+ 				country    = net:country(),
+ 				txpower    = net:txpower(),
+ 				txpoweroff = net:txpower_offset(),
+diff -ruN ../kt841lede/feeds/luci/modules/luci-base/luasrc/tools/status.lua.orig feeds/luci/modules/luci-base/luasrc/tools/status.lua.orig
+--- ../kt841lede/feeds/luci/modules/luci-base/luasrc/tools/status.lua.orig	2017-06-27 09:23:18.203931483 +0500
++++ feeds/luci/modules/luci-base/luasrc/tools/status.lua.orig	1970-01-01 05:00:00.000000000 +0500
+@@ -1,230 +0,0 @@
+--- Copyright 2011 Jo-Philipp Wich <jow@openwrt.org>
+--- Licensed to the public under the Apache License 2.0.
+-
+-module("luci.tools.status", package.seeall)
+-
+-local uci = require "luci.model.uci".cursor()
+-
+-local function dhcp_leases_common(family)
+-	local rv = { }
+-	local nfs = require "nixio.fs"
+-	local leasefile = "/tmp/dhcp.leases"
+-
+-	uci:foreach("dhcp", "dnsmasq",
+-		function(s)
+-			if s.leasefile and nfs.access(s.leasefile) then
+-				leasefile = s.leasefile
+-				return false
+-			end
+-		end)
+-
+-	local fd = io.open(leasefile, "r")
+-	if fd then
+-		while true do
+-			local ln = fd:read("*l")
+-			if not ln then
+-				break
+-			else
+-				local ts, mac, ip, name, duid = ln:match("^(%d+) (%S+) (%S+) (%S+) (%S+)")
+-				local expire = tonumber(ts) or 0
+-				if ts and mac and ip and name and duid then
+-					if family == 4 and not ip:match(":") then
+-						rv[#rv+1] = {
+-							expires  = (expire ~= 0) and os.difftime(expire, os.time()),
+-							macaddr  = mac,
+-							ipaddr   = ip,
+-							hostname = (name ~= "*") and name
+-						}
+-					elseif family == 6 and ip:match(":") then
+-						rv[#rv+1] = {
+-							expires  = (expire ~= 0) and os.difftime(expire, os.time()),
+-							ip6addr  = ip,
+-							duid     = (duid ~= "*") and duid,
+-							hostname = (name ~= "*") and name
+-						}
+-					end
+-				end
+-			end
+-		end
+-		fd:close()
+-	end
+-
+-	local lease6file = "/tmp/hosts/odhcpd"
+-	uci:foreach("dhcp", "odhcpd",
+-		function(t)
+-			if t.leasefile and nfs.access(t.leasefile) then
+-				lease6file = t.leasefile
+-				return false
+-			end
+-		end)
+-	local fd = io.open(lease6file, "r")
+-	if fd then
+-		while true do
+-			local ln = fd:read("*l")
+-			if not ln then
+-				break
+-			else
+-				local iface, duid, iaid, name, ts, id, length, ip = ln:match("^# (%S+) (%S+) (%S+) (%S+) (-?%d+) (%S+) (%S+) (.*)")
+-				local expire = tonumber(ts) or 0
+-				if ip and iaid ~= "ipv4" and family == 6 then
+-					rv[#rv+1] = {
+-						expires  = (expire >= 0) and os.difftime(expire, os.time()),
+-						duid     = duid,
+-						ip6addr  = ip,
+-						hostname = (name ~= "-") and name
+-					}
+-				elseif ip and iaid == "ipv4" and family == 4 then
+-					local mac, mac1, mac2, mac3, mac4, mac5, mac6
+-					if duid and type(duid) == "string" then
+-						 mac1, mac2, mac3, mac4, mac5, mac6 = duid:match("^(%x%x)(%x%x)(%x%x)(%x%x)(%x%x)(%x%x)$")
+-					end
+-					if not (mac1 and mac2 and mac3 and mac4 and mac5 and mac6) then
+-						mac = "FF:FF:FF:FF:FF:FF"
+-					else
+-						mac = mac1..":"..mac2..":"..mac3..":"..mac4..":"..mac5..":"..mac6
+-					end
+-					rv[#rv+1] = {
+-						expires  = (expire >= 0) and os.difftime(expire, os.time()),
+-						macaddr  = duid,
+-						macaddr  = mac:lower(),
+-						ipaddr   = ip,
+-						hostname = (name ~= "-") and name
+-					}
+-				end
+-			end
+-		end
+-		fd:close()
+-	end
+-
+-	return rv
+-end
+-
+-function dhcp_leases()
+-	return dhcp_leases_common(4)
+-end
+-
+-function dhcp6_leases()
+-	return dhcp_leases_common(6)
+-end
+-
+-function wifi_networks()
+-	local rv = { }
+-	local ntm = require "luci.model.network".init()
+-
+-	local dev
+-	for _, dev in ipairs(ntm:get_wifidevs()) do
+-		local rd = {
+-			up       = dev:is_up(),
+-			device   = dev:name(),
+-			name     = dev:get_i18n(),
+-			networks = { }
+-		}
+-
+-		local net
+-		for _, net in ipairs(dev:get_wifinets()) do
+-			rd.networks[#rd.networks+1] = {
+-				name       = net:shortname(),
+-				link       = net:adminlink(),
+-				up         = net:is_up(),
+-				mode       = net:active_mode(),
+-				ssid       = net:active_ssid(),
+-				bssid      = net:active_bssid(),
+-				encryption = net:active_encryption(),
+-				frequency  = net:frequency(),
+-				channel    = net:channel(),
+-				signal     = net:signal(),
+-				quality    = net:signal_percent(),
+-				noise      = net:noise(),
+-				bitrate    = net:bitrate(),
+-				ifname     = net:ifname(),
+-				assoclist  = net:assoclist(),
+-				country    = net:country(),
+-				txpower    = net:txpower(),
+-				txpoweroff = net:txpower_offset(),
+-				disabled   = (dev:get("disabled") == "1" or
+-				             net:get("disabled") == "1")
+-			}
+-		end
+-
+-		rv[#rv+1] = rd
+-	end
+-
+-	return rv
+-end
+-
+-function wifi_network(id)
+-	local ntm = require "luci.model.network".init()
+-	local net = ntm:get_wifinet(id)
+-	if net then
+-		local dev = net:get_device()
+-		if dev then
+-			return {
+-				id         = id,
+-				name       = net:shortname(),
+-				link       = net:adminlink(),
+-				up         = net:is_up(),
+-				mode       = net:active_mode(),
+-				ssid       = net:active_ssid(),
+-				bssid      = net:active_bssid(),
+-				encryption = net:active_encryption(),
+-				frequency  = net:frequency(),
+-				channel    = net:channel(),
+-				signal     = net:signal(),
+-				quality    = net:signal_percent(),
+-				noise      = net:noise(),
+-				bitrate    = net:bitrate(),
+-				ifname     = net:ifname(),
+-				assoclist  = net:assoclist(),
+-				country    = net:country(),
+-				txpower    = net:txpower(),
+-				txpoweroff = net:txpower_offset(),
+-				disabled   = (dev:get("disabled") == "1" or
+-				              net:get("disabled") == "1"),
+-				device     = {
+-					up     = dev:is_up(),
+-					device = dev:name(),
+-					name   = dev:get_i18n()
+-				}
+-			}
+-		end
+-	end
+-	return { }
+-end
+-
+-function switch_status(devs)
+-	local dev
+-	local switches = { }
+-	for dev in devs:gmatch("[^%s,]+") do
+-		local ports = { }
+-		local swc = io.popen("swconfig dev %q show" % dev, "r")
+-		if swc then
+-			local l
+-			repeat
+-				l = swc:read("*l")
+-				if l then
+-					local port, up = l:match("port:(%d+) link:(%w+)")
+-					if port then
+-						local speed  = l:match(" speed:(%d+)")
+-						local duplex = l:match(" (%w+)-duplex")
+-						local txflow = l:match(" (txflow)")
+-						local rxflow = l:match(" (rxflow)")
+-						local auto   = l:match(" (auto)")
+-
+-						ports[#ports+1] = {
+-							port   = tonumber(port) or 0,
+-							speed  = tonumber(speed) or 0,
+-							link   = (up == "up"),
+-							duplex = (duplex == "full"),
+-							rxflow = (not not rxflow),
+-							txflow = (not not txflow),
+-							auto   = (not not auto)
+-						}
+-					end
+-				end
+-			until not l
+-			swc:close()
+-		end
+-		switches[dev] = ports
+-	end
+-	return switches
+-end
+Binary files ../kt841lede/feeds/luci/modules/luci-base/src/po2lmo and feeds/luci/modules/luci-base/src/po2lmo differ
+Binary files ../kt841lede/feeds/luci/modules/luci-base/src/po2lmo.o and feeds/luci/modules/luci-base/src/po2lmo.o differ
+Binary files ../kt841lede/feeds/luci/modules/luci-base/src/template_lmo.o and feeds/luci/modules/luci-base/src/template_lmo.o differ
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/model/cbi/admin_network/wifi.lua feeds/luci/modules/luci-mod-admin-full/luasrc/model/cbi/admin_network/wifi.lua
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/model/cbi/admin_network/wifi.lua	2017-06-27 11:56:17.763931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/model/cbi/admin_network/wifi.lua	2017-06-30 10:42:08.295931483 +0500
+@@ -250,7 +250,7 @@
+ 
+ ------------------- Broadcom Device ------------------
+ 
+-if hwtype == "broadcom" or hwtype == "ralink" then
++if hwtype == "broadcom" then
+ 	tp = s:taboption("general",
+ 		(#tx_power_list > 0) and ListValue or Value,
+ 		"txpower", translate("Transmit Power"), "dBm")
+@@ -473,7 +473,7 @@
+ 
+ -------------------- Broadcom Interface ----------------------
+ 
+-if hwtype == "broadcom" or hwtype == "ralink" then
++if hwtype == "broadcom" then
+ 	mode:value("wds", translate("WDS"))
+ 	mode:value("monitor", translate("Monitor"))
+ 
+@@ -637,7 +637,7 @@
+ 			"and ad-hoc mode) to be installed."
+ 		)
+ 	end
+-elseif hwtype == "broadcom" or hwtype == "ralink" then
++elseif hwtype == "broadcom" then
+ 	encr:value("psk", "WPA-PSK")
+ 	encr:value("psk2", "WPA2-PSK")
+ 	encr:value("psk+psk2", "WPA-PSK/WPA2-PSK Mixed Mode")
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm	2017-06-27 12:01:41.459931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm	2017-06-30 10:42:08.295931483 +0500
+@@ -441,7 +441,7 @@
+ 	<!-- /device <%=dev:name()%> -->
+ 	<% end %>
+ 
+-	<!--
++
+ 	<h2><%:Associated Stations%></h2>
+ 
+ 	<fieldset class="cbi-section">
+@@ -461,7 +461,6 @@
+ 			</tr>
+ 		</table>
+ 	</fieldset>
+-	-->
+ </div>
+ 
+ <%+footer%>
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.orig feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.orig
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.orig	2017-06-27 09:23:18.227931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.orig	1970-01-01 05:00:00.000000000 +0500
+@@ -1,466 +0,0 @@
+-<%#
+- Copyright 2008-2009 Steven Barth <steven@midlink.org>
+- Copyright 2008-2015 Jo-Philipp Wich <jow@openwrt.org>
+- Licensed to the public under the Apache License 2.0.
+--%>
+-
+-<%-
+-
+-	local ip = require "luci.ip"
+-	local fs = require "nixio.fs"
+-	local utl = require "luci.util"
+-	local uci = require "luci.model.uci".cursor()
+-	local ntm = require "luci.model.network"
+-
+-	local has_iwinfo = pcall(require, "iwinfo")
+-
+-	ntm.init(uci)
+-
+-	function guess_wifi_hw(dev)
+-		local bands = ""
+-		local ifname = dev:name()
+-		local name, idx = ifname:match("^([a-z]+)(%d+)")
+-		idx = tonumber(idx)
+-
+-		if has_iwinfo then
+-			local bl = dev.iwinfo.hwmodelist
+-			if bl and next(bl) then
+-				if bl.a then bands = bands .. "a" end
+-				if bl.b then bands = bands .. "b" end
+-				if bl.g then bands = bands .. "g" end
+-				if bl.n then bands = bands .. "n" end
+-				if bl.ac then bands = bands .. "ac" end
+-			end
+-
+-			local hw = dev.iwinfo.hardware_name
+-			if hw then
+-				return "%s 802.11%s" %{ hw, bands }
+-			end
+-		end
+-
+-		-- wl.o
+-		if name == "wl" then
+-			local name = translatef("Broadcom 802.11%s Wireless Controller", bands)
+-			local nm   = 0
+-
+-			local fd = nixio.open("/proc/bus/pci/devices", "r")
+-			if fd then
+-				local ln
+-				for ln in fd:linesource() do
+-					if ln:match("wl$") then
+-						if nm == idx then
+-							local version = ln:match("^%S+%s+%S%S%S%S([0-9a-f]+)")
+-							name = translatef(
+-								"Broadcom BCM%04x 802.11 Wireless Controller",
+-								tonumber(version, 16)
+-							)
+-
+-							break
+-						else
+-							nm = nm + 1
+-						end
+-					end
+-				end
+-				fd:close()
+-			end
+-
+-			return name
+-
+-		-- ralink
+-		elseif name == "ra" then
+-			return translatef("RaLink 802.11%s Wireless Controller", bands)
+-
+-		-- hermes
+-		elseif name == "eth" then
+-			return translate("Hermes 802.11b Wireless Controller")
+-
+-		-- hostap
+-		elseif name == "wlan" and fs.stat("/proc/net/hostap/" .. ifname, "type") == "dir" then
+-			return translate("Prism2/2.5/3 802.11b Wireless Controller")
+-
+-		-- dunno yet
+-		else
+-			return translatef("Generic 802.11%s Wireless Controller", bands)
+-		end
+-	end
+-
+-	local devices = ntm:get_wifidevs()
+-	local netlist = { }
+-	local netdevs = { }
+-
+-	local dev
+-	for _, dev in ipairs(devices) do
+-		local net
+-		for _, net in ipairs(dev:get_wifinets()) do
+-			netlist[#netlist+1] = net:id()
+-			netdevs[net:id()] = dev:name()
+-		end
+-	end
+--%>
+-
+-<%+header%>
+-
+-<% if not has_iwinfo then %>
+-	<div class="errorbox">
+-		<strong><%:Package libiwinfo required!%></strong><br />
+-		<%_The <em>libiwinfo-lua</em> package is not installed. You must install this component for working wireless configuration!%>
+-	</div>
+-<% end %>
+-
+-<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+-<script type="text/javascript">//<![CDATA[
+-	var wifidevs = <%=luci.http.write_json(netdevs)%>;
+-
+-	var is_reconnecting = false;
+-
+-	function nowrap(s) {
+-		return s.replace(/ /g, '&#160;');
+-	}
+-
+-	function wifirate(bss, rx) {
+-		var p = rx ? 'rx_' : 'tx_',
+-		    s = '%.1f <%:Mbit/s%>, %d<%:MHz%>'
+-					.format(bss[p+'rate'] / 1000, bss[p+'mhz']),
+-		    ht = bss[p+'ht'], vht = bss[p+'vht'],
+-			mhz = bss[p+'mhz'], nss = bss[p+'nss'],
+-			mcs = bss[p+'mcs'], sgi = bss[p+'short_gi'];
+-
+-		if (ht || vht) {
+-			if (vht) s += ', VHT-MCS %d'.format(mcs);
+-			if (nss) s += ', VHT-NSS %d'.format(nss);
+-			if (ht)  s += ', MCS %s'.format(mcs);
+-			if (sgi) s += ', <%:Short GI%>';
+-		}
+-
+-		return s;
+-	}
+-
+-	function wifi_shutdown(id, toggle) {
+-		var reconnect = (toggle.getAttribute('active') == 'false');
+-
+-		if (!reconnect && !confirm(String.format('<%:Really shut down network?\nYou might lose access to this device if you are connected via this interface.%>')))
+-			return;
+-
+-		is_reconnecting = true;
+-
+-		var s = document.getElementById('iw-rc-status');
+-		if (s)
+-		{
+-			s.parentNode.style.display = 'block';
+-			s.innerHTML = '<%:Waiting for changes to be applied...%>';
+-		}
+-
+-		for (var net in wifidevs)
+-		{
+-			var st = document.getElementById(net + '-iw-status');
+-			if (st)
+-				st.innerHTML = '<em><%:Wireless is restarting...%></em>';
+-		}
+-
+-		(new XHR()).post('<%=url('admin/network')%>/wireless_' + (reconnect ? 'reconnect' : 'shutdown') + '/' + id, { token: '<%=token%>' },
+-			function(x)
+-			{
+-				if (s)
+-				{
+-					s.innerHTML = reconnect
+-						? '<%:Wireless restarted%>'
+-						: '<%:Wireless shut down%>';
+-
+-					window.setTimeout(function() {
+-						s.parentNode.style.display = 'none';
+-						is_reconnecting = false;
+-					}, 1000);
+-				}
+-			}
+-		);
+-	}
+-
+-	function wifi_delete(id) {
+-		if (!confirm('<%:Really delete this wireless network? The deletion cannot be undone!\nYou might lose access to this device if you are connected via this network.%>'))
+-			return;
+-
+-		(new XHR()).post('<%=url('admin/network/wireless_delete')%>/' + id, { token: '<%=token%>' },
+-			function(x) {
+-				location.href = '<%=url('admin/network/wireless')%>';
+-			}
+-		);
+-	}
+-
+-	var hosts = <%=luci.http.write_json(luci.sys.net.host_hints())%>;
+-
+-	XHR.poll(5, '<%=url('admin/network/wireless_status', table.concat(netlist, ","))%>', null,
+-		function(x, st)
+-		{
+-			if (st)
+-			{
+-				var assoctable = document.getElementById('iw-assoclist');
+-				if (assoctable)
+-					while (assoctable.rows.length > 1)
+-						assoctable.rows[1].parentNode.removeChild(assoctable.rows[1]);
+-
+-				var devup = { };
+-				var rowstyle = 1;
+-
+-				for( var i = 0; i < st.length; i++ )
+-				{
+-					var iw = st[i];
+-					var is_assoc = (iw.bssid && iw.bssid != '00:00:00:00:00:00' && iw.channel && iw.mode != 'Unknown' && !iw.disabled);
+-					var p = iw.quality;
+-					var q = is_assoc ? p : -1;
+-
+-					var icon;
+-					if (q < 0)
+-						icon = "<%=resource%>/icons/signal-none.png";
+-					else if (q == 0)
+-						icon = "<%=resource%>/icons/signal-0.png";
+-					else if (q < 25)
+-						icon = "<%=resource%>/icons/signal-0-25.png";
+-					else if (q < 50)
+-						icon = "<%=resource%>/icons/signal-25-50.png";
+-					else if (q < 75)
+-						icon = "<%=resource%>/icons/signal-50-75.png";
+-					else
+-						icon = "<%=resource%>/icons/signal-75-100.png";
+-
+-					if (!devup[wifidevs[iw.id]])
+-						devup[wifidevs[iw.id]] = is_assoc;
+-
+-					var sig = document.getElementById(iw.id + '-iw-signal');
+-					if (sig)
+-						sig.innerHTML = String.format(
+-							'<span class="ifacebadge" title="<%:Signal%>: %d <%:dBm%> / <%:Noise%>: %d <%:dBm%>"><img src="%s" /> %d%%</span>',
+-							iw.signal, iw.noise, icon, p
+-						);
+-
+-					var toggle = document.getElementById(iw.id + '-iw-toggle');
+-					if (toggle)
+-					{
+-						if (!iw.disabled)
+-						{
+-							toggle.className = 'cbi-button cbi-button-reset';
+-							toggle.value = '<%:Disable%>';
+-							toggle.title = '<%:Shutdown this network%>';
+-						}
+-						else
+-						{
+-							toggle.className = 'cbi-button cbi-button-reload';
+-							toggle.value = '<%:Enable%>';
+-							toggle.title = '<%:Activate this network%>';
+-						}
+-
+-						toggle.setAttribute('active', !iw.disabled);
+-					}
+-
+-					var info = document.getElementById(iw.id + '-iw-status');
+-					if (info)
+-					{
+-						if (is_assoc)
+-							info.innerHTML = String.format(
+-								'<strong><%:SSID%>:</strong> %h | ' +
+-								'<strong><%:Mode%>:</strong> %s<br />' +
+-								'<strong><%:BSSID%>:</strong> %s | ' +
+-								'<strong><%:Encryption%>:</strong> %s',
+-									iw.ssid, iw.mode, iw.bssid,
+-									iw.encryption ? iw.encryption : '<%:None%>'
+-							);
+-						else
+-							info.innerHTML = String.format(
+-								'<strong><%:SSID%>:</strong> %h | ' +
+-								'<strong><%:Mode%>:</strong> %s<br />' +
+-								'<em>%s</em>',
+-									iw.ssid || '?', iw.mode,
+-									is_reconnecting
+-										? '<em><%:Wireless is restarting...%></em>'
+-										: '<em><%:Wireless is disabled or not associated%></em>'
+-							);
+-					}
+-
+-					var dev = document.getElementById(wifidevs[iw.id] + '-iw-devinfo');
+-					if (dev)
+-					{
+-						if (is_assoc)
+-							dev.innerHTML = String.format(
+-								'<strong><%:Channel%>:</strong> %s (%s <%:GHz%>) | ' +
+-								'<strong><%:Bitrate%>:</strong> %s <%:Mbit/s%>',
+-									iw.channel ? iw.channel : '?',
+-									iw.frequency ? iw.frequency : '?',
+-									iw.bitrate ? iw.bitrate : '?'
+-							);
+-						else
+-							dev.innerHTML = '';
+-					}
+-
+-					if (assoctable)
+-					{
+-						var assoclist = [ ];
+-						for( var bssid in iw.assoclist )
+-						{
+-							assoclist.push(iw.assoclist[bssid]);
+-							assoclist[assoclist.length-1].bssid = bssid;
+-						}
+-
+-						assoclist.sort(function(a, b) { a.bssid < b.bssid });
+-
+-						for( var j = 0; j < assoclist.length; j++ )
+-						{
+-							var tr = assoctable.insertRow(-1);
+-							    tr.className = 'cbi-section-table-row cbi-rowstyle-' + rowstyle;
+-
+-							var icon;
+-							var q = (-1 * (assoclist[j].noise - assoclist[j].signal)) / 5;
+-							if (q < 1)
+-								icon = "<%=resource%>/icons/signal-0.png";
+-							else if (q < 2)
+-								icon = "<%=resource%>/icons/signal-0-25.png";
+-							else if (q < 3)
+-								icon = "<%=resource%>/icons/signal-25-50.png";
+-							else if (q < 4)
+-								icon = "<%=resource%>/icons/signal-50-75.png";
+-							else
+-								icon = "<%=resource%>/icons/signal-75-100.png";
+-
+-							tr.insertCell(-1).innerHTML = String.format(
+-								'<span class="ifacebadge" title="%q"><img src="<%=resource%>/icons/wifi.png" /> %h</span>',
+-								iw.device.name, iw.ifname
+-							);
+-
+-							tr.insertCell(-1).innerHTML = nowrap(String.format('%h', iw.ssid ? iw.ssid : '?'));
+-							tr.insertCell(-1).innerHTML = assoclist[j].bssid;
+-
+-							var host = hosts[assoclist[j].bssid];
+-							if (host)
+-								tr.insertCell(-1).innerHTML = String.format(
+-									'<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis">%s</div>',
+-									((host.name && (host.ipv4 || host.ipv6))
+-										? '%h (%s)'.format(host.name, host.ipv4 || host.ipv6)
+-										: '%h'.format(host.name || host.ipv4 || host.ipv6)).nobr()
+-								);
+-							else
+-								tr.insertCell(-1).innerHTML = '?';
+-
+-							tr.insertCell(-1).innerHTML = String.format(
+-								'<span class="ifacebadge" title="<%:Signal%>: %d <%:dBm%> / <%:Noise%>: %d <%:dBm%> / <%:SNR%>: %d"><img src="%s" /> %d / %d <%:dBm%></span>',
+-								assoclist[j].signal, assoclist[j].noise, assoclist[j].signal - assoclist[j].noise,
+-								icon,
+-								assoclist[j].signal, assoclist[j].noise
+-							);
+-
+-							tr.insertCell(-1).innerHTML = nowrap(wifirate(assoclist[j], true)) + '<br />' + nowrap(wifirate(assoclist[j], false));
+-
+-							rowstyle = (rowstyle == 1) ? 2 : 1;
+-						}
+-					}
+-				}
+-
+-				if (assoctable && assoctable.rows.length == 1)
+-				{
+-					var tr = assoctable.insertRow(-1);
+-					    tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-					    td.colSpan = 8;
+-					    td.innerHTML = '<br /><em><%:No information available%></em>';
+-				}
+-
+-				for (var dev in devup)
+-				{
+-					var img = document.getElementById(dev + '-iw-upstate');
+-					if (img)
+-						img.src = '<%=resource%>/icons/wifi_big' + (devup[dev] ? '' : '_disabled') + '.png';
+-				}
+-			}
+-		}
+-	);
+-//]]></script>
+-
+-<h2 name="content"><%:Wireless Overview%></h2>
+-
+-<fieldset class="cbi-section" style="display:none">
+-	<legend><%:Reconnecting interface%></legend>
+-	<img src="<%=resource%>/icons/loading.gif" alt="<%:Loading%>" style="vertical-align:middle" />
+-	<span id="iw-rc-status"><%:Waiting for changes to be applied...%></span>
+-</fieldset>
+-
+-<div class="cbi-map">
+-
+-	<% for _, dev in ipairs(devices) do local nets = dev:get_wifinets() %>
+-	<!-- device <%=dev:name()%> -->
+-	<fieldset class="cbi-section">
+-		<table class="cbi-section-table" style="margin:10px; empty-cells:hide">
+-			<!-- physical device -->
+-			<tr>
+-				<td style="width:34px"><img src="<%=resource%>/icons/wifi_big_disabled.png" style="float:left; margin-right:10px" id="<%=dev:name()%>-iw-upstate" /></td>
+-				<td colspan="2" style="text-align:left">
+-					<big><strong><%=guess_wifi_hw(dev)%> (<%=dev:name()%>)</strong></big><br />
+-					<span id="<%=dev:name()%>-iw-devinfo"></span>
+-				</td>
+-				<td style="width:310px;text-align:right">
+-					<form action="<%=url('admin/network/wireless_join')%>" method="post" class="inline">
+-						<input type="hidden" name="device" value="<%=dev:name()%>" />
+-						<input type="hidden" name="token" value="<%=token%>" />
+-						<input type="submit" class="cbi-button cbi-button-find" style="width:100px" title="<%:Find and join network%>" value="<%:Scan%>" />
+-					</form>
+-					<form action="<%=url('admin/network/wireless_add')%>" method="post" class="inline">
+-						<input type="hidden" name="device" value="<%=dev:name()%>" />
+-						<input type="hidden" name="token" value="<%=token%>" />
+-						<input type="submit" class="cbi-button cbi-button-add" style="width:100px" title="<%:Provide new network%>" value="<%:Add%>" />
+-					</form>
+-				</td>
+-			</tr>
+-			<!-- /physical device -->
+-
+-			<!-- network list -->
+-			<% if #nets > 0 then %>
+-				<% for i, net in ipairs(nets) do %>
+-				<tr class="cbi-section-table-row cbi-rowstyle-<%=1 + ((i-1) % 2)%>">
+-					<td></td>
+-					<td class="cbi-value-field" style="vertical-align:middle; padding:3px" id="<%=net:id()%>-iw-signal">
+-						<span class="ifacebadge" title="<%:Not associated%>"><img src="<%=resource%>/icons/signal-none.png" /> 0%</span>
+-					</td>
+-					<td class="cbi-value-field" style="vertical-align:middle; text-align:left; padding:3px" id="<%=net:id()%>-iw-status">
+-						<em><%:Collecting data...%></em>
+-					</td>
+-					<td class="cbi-value-field" style="width:310px;text-align:right">
+-						<input id="<%=net:id()%>-iw-toggle" type="button" class="cbi-button cbi-button-reload" style="width:100px" onclick="wifi_shutdown('<%=net:id()%>', this)" title="<%:Delete this network%>" value="<%:Enable%>" />
+-						<input type="button" class="cbi-button cbi-button-edit" style="width:100px" onclick="location.href='<%=net:adminlink()%>'" title="<%:Edit this network%>" value="<%:Edit%>" />
+-						<input type="button" class="cbi-button cbi-button-remove" style="width:100px" onclick="wifi_delete('<%=net:id()%>')" title="<%:Delete this network%>" value="<%:Remove%>" />
+-					</td>
+-				</tr>
+-				<% end %>
+-			<% else %>
+-				<tr class="cbi-section-table-row cbi-rowstyle-2">
+-					<td></td>
+-					<td colspan="3" class="cbi-value-field" style="vertical-align:middle; text-align:left; padding:3px">
+-						<em><%:No network configured on this device%></em>
+-					</td>
+-				</tr>
+-			<% end %>
+-			<!-- /network list -->
+-		</table>
+-	</fieldset>
+-	<!-- /device <%=dev:name()%> -->
+-	<% end %>
+-
+-
+-	<h2><%:Associated Stations%></h2>
+-
+-	<fieldset class="cbi-section">
+-		<table class="cbi-section-table valign-middle" style="margin:10px" id="iw-assoclist">
+-			<tr class="cbi-section-table-titles">
+-				<th class="cbi-section-table-cell"></th>
+-				<th class="cbi-section-table-cell"><%:SSID%></th>
+-				<th class="cbi-section-table-cell"><%:MAC-Address%></th>
+-				<th class="cbi-section-table-cell"><%:Host%></th>
+-				<th class="cbi-section-table-cell"><%:Signal%> / <%:Noise%></th>
+-				<th class="cbi-section-table-cell"><%:RX Rate%> / <%:TX Rate%></th>
+-			</tr>
+-			<tr class="cbi-section-table-row cbi-rowstyle-2">
+-				<td class="cbi-value-field" colspan="6">
+-					<em><%:Collecting data...%></em>
+-				</td>
+-			</tr>
+-		</table>
+-	</fieldset>
+-</div>
+-
+-<%+footer%>
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.rej feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.rej
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.rej	2017-06-27 12:00:01.111931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_network/wifi_overview.htm.rej	1970-01-01 05:00:00.000000000 +0500
+@@ -1,11 +0,0 @@
+---- wifi_overview.htm	2017-06-18 13:54:48.000000000 +0500
+-+++ wifi_overview.htm	2017-06-23 13:26:46.000000000 +0500
+-@@ -417,7 +417,7 @@
+- 	<!-- /device <%=dev:name()%> -->
+- 	<% end %>
+- 
+--
+-+	<!--
+- 	<h2><a id="content" name="content"><%:Associated Stations%></a></h2>
+- 
+- 	<fieldset class="cbi-section">
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm	2017-06-27 13:10:23.283931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm	2017-06-30 10:42:08.295931483 +0500
+@@ -446,7 +446,7 @@
+ 
+ 			<% if has_wifi then %>
+ 			var assoclist = [ ];
+-			var assoclist_iwpriv = [ ];
++
+ 			var ws = document.getElementById('wifi_status_table');
+ 			if (ws)
+ 			{
+@@ -534,18 +534,6 @@
+ 
+ 							assoclist.push(bss);
+ 						}
+-						//Defender mod
+-						if(is_assoc) {
+-							priwlist = net.assoclist_iwpriv;
+-							priwlist.forEach(function(item, i, priwlist) {
+-								assoclist_iwpriv.push({
+-									name: item.device_name,
+-									ip: item.ip,
+-									mac: item.mac
+-								});
+-							});
+-						}
+-						//
+ 					}
+ 
+ 					if (!s)
+@@ -554,106 +542,7 @@
+ 					td.innerHTML = s;
+ 				}
+ 			}
+-			
+-			var ac = document.getElementById('wifi_assoc_table');
+-			if (ac)
+-			{
+-				/* clear all rows */
+-				while( ac.rows.length > 1 )
+-					ac.rows[0].parentNode.deleteRow(1);
+-
+-				assoclist.sort(function(a, b) {
+-					return (a.name == b.name)
+-						? (a.bssid < b.bssid)
+-						: (a.name  > b.name )
+-					;
+-				});
+ 
+-				for( var i = 0; i < assoclist.length; i++ )
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row cbi-rowstyle-' + (1 + (i % 2));
+-
+-					var icon;
+-					var q = (-1 * (assoclist[i].noise - assoclist[i].signal)) / 5;
+-					if (q < 1)
+-						icon = "<%=resource%>/icons/signal-0.png";
+-					else if (q < 2)
+-						icon = "<%=resource%>/icons/signal-0-25.png";
+-					else if (q < 3)
+-						icon = "<%=resource%>/icons/signal-25-50.png";
+-					else if (q < 4)
+-						icon = "<%=resource%>/icons/signal-50-75.png";
+-					else
+-						icon = "<%=resource%>/icons/signal-75-100.png";
+-
+-					tr.insertCell(-1).innerHTML = String.format(
+-						'<img src="%s" title="<%:Signal%>: %d <%:dBm%> / <%:Noise%>: %d <%:dBm%>" />',
+-						icon, assoclist[i].signal, assoclist[i].noise
+-					);
+-
+-					tr.insertCell(-1).innerHTML = assoclist[i].bssid;
+-
+-					tr.insertCell(-1).innerHTML = String.format(
+-						'<a href="%s">%s</a>',
+-							assoclist[i].link,
+-							'%h'.format(assoclist[i].name).nobr()
+-					);
+-
+-					tr.insertCell(-1).innerHTML = String.format('%d <%:dBm%>', assoclist[i].signal).nobr();
+-					tr.insertCell(-1).innerHTML = String.format('%d <%:dBm%>', assoclist[i].noise).nobr();
+-
+-					tr.insertCell(-1).innerHTML = (assoclist[i].rx_mcs > -1)
+-						? String.format('%.1f <%:Mbit/s%>, MCS %d, %d<%:MHz%>', assoclist[i].rx_rate / 1000, assoclist[i].rx_mcs, assoclist[i].rx_40mhz ? 40 : 20).nobr()
+-						: String.format('%.1f <%:Mbit/s%>', assoclist[i].rx_rate / 1000).nobr()
+-					;
+-
+-					tr.insertCell(-1).innerHTML = (assoclist[i].tx_mcs > -1)
+-						? String.format('%.1f <%:Mbit/s%>, MCS %d, %d<%:MHz%>', assoclist[i].tx_rate / 1000, assoclist[i].tx_mcs, assoclist[i].tx_40mhz ? 40 : 20).nobr()
+-						: String.format('%.1f <%:Mbit/s%>', assoclist[i].tx_rate / 1000).nobr()
+-					;
+-				}
+-
+-				if (ac.rows.length == 1)
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-						td.colSpan = 7;
+-						td.innerHTML = '<br /><em><%:No information available%></em>';
+-				}
+-			}
+-			
+-			var ac = document.getElementById('wifi_assoc_table_iwpriv');
+-			if (ac)
+-			{
+-				/* clear all rows */
+-				while( ac.rows.length > 1 )
+-					ac.rows[0].parentNode.deleteRow(1);
+-				for( var i = 0; i < assoclist_iwpriv.length; i++ )
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row cbi-rowstyle-' + (1 + (i % 2));
+-
+-					tr.insertCell(-1).innerHTML = assoclist_iwpriv[i].mac;
+-					tr.insertCell(-1).innerHTML = assoclist_iwpriv[i].ip;
+-					tr.insertCell(-1).innerHTML = assoclist_iwpriv[i].name;
+-					
+-					tr.insertCell(-1).innerHTML = "";
+-				}
+-
+-				if (ac.rows.length == 1)
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-						td.colSpan = 3;
+-						td.innerHTML = '<br /><em><%:No information available%></em>';
+-				}
+-			}
+-			
+ 			var ac = document.getElementById('wifi_assoc_table');
+ 			if (ac)
+ 			{
+@@ -907,7 +796,6 @@
+ <fieldset class="cbi-section">
+ 	<legend><%:Associated Stations%></legend>
+ 
+-	<!--
+ 	<table class="cbi-section-table valign-middle" id="wifi_assoc_table">
+ 		<tr class="cbi-section-table-titles">
+ 			<th class="cbi-section-table-cell">&#160;</th>
+@@ -921,18 +809,6 @@
+ 			<td colspan="6"><em><br /><%:Collecting data...%></em></td>
+ 		</tr>
+ 	</table>
+-	-->
+-	<table class="cbi-section-table" id="wifi_assoc_table_iwpriv">
+-		<tr class="cbi-section-table-titles">
+-			<th class="cbi-section-table-cell">MAC</th>
+-			<th class="cbi-section-table-cell">IP</th>
+-			<th class="cbi-section-table-cell">Name</th>
+-			<th></th>
+-		</tr>
+-		<tr class="cbi-section-table-row">
+-			<td colspan="3"><em><br /><%:Collecting data...%></em></td>
+-		</tr>
+-	</table>
+ </fieldset>
+ <% end %>
+ 
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.orig feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.orig
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.orig	2017-06-27 09:23:18.227931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.orig	1970-01-01 05:00:00.000000000 +0500
+@@ -1,827 +0,0 @@
+-<%#
+- Copyright 2008 Steven Barth <steven@midlink.org>
+- Copyright 2008-2011 Jo-Philipp Wich <jow@openwrt.org>
+- Licensed to the public under the Apache License 2.0.
+--%>
+-
+-<%
+-	local fs = require "nixio.fs"
+-	local util = require "luci.util"
+-	local stat = require "luci.tools.status"
+-	local ver = require "luci.version"
+-
+-	local has_ipv6 = fs.access("/proc/net/ipv6_route")
+-	local has_dhcp = fs.access("/etc/config/dhcp")
+-	local has_wifi = ((fs.stat("/etc/config/wireless", "size") or 0) > 0)
+-
+-	local sysinfo = luci.util.ubus("system", "info") or { }
+-	local boardinfo = luci.util.ubus("system", "board") or { }
+-	local unameinfo = nixio.uname() or { }
+-
+-	local meminfo = sysinfo.memory or {
+-		total = 0,
+-		free = 0,
+-		buffered = 0,
+-		shared = 0
+-	}
+-
+-	local swapinfo = sysinfo.swap or {
+-		total = 0,
+-		free = 0
+-	}
+-
+-	local has_dsl = fs.access("/etc/init.d/dsl_control")
+-
+-	if luci.http.formvalue("status") == "1" then
+-		local ntm = require "luci.model.network".init()
+-		local wan = ntm:get_wannet()
+-		local wan6 = ntm:get_wan6net()
+-
+-		local conn_count = tonumber(
+-			fs.readfile("/proc/sys/net/netfilter/nf_conntrack_count")) or 0
+-
+-		local conn_max = tonumber((
+-			luci.sys.exec("sysctl net.nf_conntrack_max") or
+-			luci.sys.exec("sysctl net.ipv4.netfilter.ip_conntrack_max") or
+-			""):match("%d+")) or 4096
+-
+-		local rv = {
+-			uptime     = sysinfo.uptime or 0,
+-			localtime  = os.date(),
+-			loadavg    = sysinfo.load or { 0, 0, 0 },
+-			memory     = meminfo,
+-			swap       = swapinfo,
+-			connmax    = conn_max,
+-			conncount  = conn_count,
+-			leases     = stat.dhcp_leases(),
+-			leases6    = stat.dhcp6_leases(),
+-			wifinets   = stat.wifi_networks()
+-		}
+-
+-		if wan then
+-			rv.wan = {
+-				ipaddr  = wan:ipaddr(),
+-				gwaddr  = wan:gwaddr(),
+-				netmask = wan:netmask(),
+-				dns     = wan:dnsaddrs(),
+-				expires = wan:expires(),
+-				uptime  = wan:uptime(),
+-				proto   = wan:proto(),
+-				ifname  = wan:ifname(),
+-				link    = wan:adminlink()
+-			}
+-		end
+-
+-		if wan6 then
+-			rv.wan6 = {
+-				ip6addr   = wan6:ip6addr(),
+-				gw6addr   = wan6:gw6addr(),
+-				dns       = wan6:dns6addrs(),
+-				ip6prefix = wan6:ip6prefix(),
+-				uptime    = wan6:uptime(),
+-				proto     = wan6:proto(),
+-				ifname    = wan6:ifname(),
+-				link      = wan6:adminlink()
+-			}
+-		end
+-
+-		if has_dsl then
+-			local dsl_stat = luci.sys.exec("/etc/init.d/dsl_control lucistat")
+-			local dsl_func = loadstring(dsl_stat)
+-			if dsl_func then
+-				rv.dsl = dsl_func()
+-			end
+-		end
+-
+-		luci.http.prepare_content("application/json")
+-		luci.http.write_json(rv)
+-
+-		return
+-	elseif luci.http.formvalue("hosts") == "1" then
+-		luci.http.prepare_content("application/json")
+-		luci.http.write_json(luci.sys.net.host_hints())
+-
+-		return
+-	end
+--%>
+-
+-<%+header%>
+-
+-<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+-<script type="text/javascript">//<![CDATA[
+-	function progressbar(v, m)
+-	{
+-		var vn = parseInt(v) || 0;
+-		var mn = parseInt(m) || 100;
+-		var pc = Math.floor((100 / mn) * vn);
+-
+-		return String.format(
+-			'<div style="width:200px; position:relative; border:1px solid #999999">' +
+-				'<div style="background-color:#CCCCCC; width:%d%%; height:15px">' +
+-					'<div style="position:absolute; left:0; top:0; text-align:center; width:100%%; color:#000000">' +
+-						'<small>%s / %s (%d%%)</small>' +
+-					'</div>' +
+-				'</div>' +
+-			'</div>', pc, v, m, pc
+-		);
+-	}
+-
+-	function wifirate(bss, rx) {
+-		var p = rx ? 'rx_' : 'tx_',
+-		    s = '%.1f <%:Mbit/s%>, %d<%:MHz%>'
+-					.format(bss[p+'rate'] / 1000, bss[p+'mhz']),
+-		    ht = bss[p+'ht'], vht = bss[p+'vht'],
+-			mhz = bss[p+'mhz'], nss = bss[p+'nss'],
+-			mcs = bss[p+'mcs'], sgi = bss[p+'short_gi'];
+-
+-		if (ht || vht) {
+-			if (vht) s += ', VHT-MCS %d'.format(mcs);
+-			if (nss) s += ', VHT-NSS %d'.format(nss);
+-			if (ht)  s += ', MCS %s'.format(mcs);
+-			if (sgi) s += ', <%:Short GI%>';
+-		}
+-
+-		return s;
+-	}
+-
+-	function duid2mac(duid) {
+-		// DUID-LLT / Ethernet
+-		if (duid.length === 28 && duid.substr(0, 8) === '00010001')
+-			return duid.substr(16).replace(/(..)(?=..)/g, '$1:').toUpperCase();
+-
+-		// DUID-LL / Ethernet
+-		if (duid.length === 24 && duid.substr(0, 8) === '00030001')
+-			return duid.substr(8).replace(/(..)(?=..)/g, '$1:').toUpperCase();
+-
+-		return null;
+-	}
+-
+-	var npoll = 1;
+-	var hosts = <%=luci.http.write_json(luci.sys.net.host_hints())%>;
+-
+-	function updateHosts() {
+-		XHR.get('<%=REQUEST_URI%>', { hosts: 1 }, function(x, data) {
+-			hosts = data;
+-		});
+-	}
+-
+-	XHR.poll(5, '<%=REQUEST_URI%>', { status: 1 },
+-		function(x, info)
+-		{
+-			if (!(npoll++ % 5))
+-				updateHosts();
+-
+-			var si = document.getElementById('wan4_i');
+-			var ss = document.getElementById('wan4_s');
+-			var ifc = info.wan;
+-
+-			if (ifc && ifc.ifname && ifc.proto != 'none')
+-			{
+-				var s = String.format(
+-					'<strong><%:Type%>: </strong>%s<br />' +
+-					'<strong><%:Address%>: </strong>%s<br />' +
+-					'<strong><%:Netmask%>: </strong>%s<br />' +
+-					'<strong><%:Gateway%>: </strong>%s<br />',
+-						ifc.proto,
+-						(ifc.ipaddr) ? ifc.ipaddr : '0.0.0.0',
+-						(ifc.netmask && ifc.netmask != ifc.ipaddr) ? ifc.netmask : '255.255.255.255',
+-						(ifc.gwaddr) ? ifc.gwaddr : '0.0.0.0'
+-				);
+-
+-				for (var i = 0; i < ifc.dns.length; i++)
+-				{
+-					s += String.format(
+-						'<strong><%:DNS%> %d: </strong>%s<br />',
+-						i + 1, ifc.dns[i]
+-					);
+-				}
+-
+-				if (ifc.expires > -1)
+-				{
+-					s += String.format(
+-						'<strong><%:Expires%>: </strong>%t<br />',
+-						ifc.expires
+-					);
+-				}
+-
+-				if (ifc.uptime > 0)
+-				{
+-					s += String.format(
+-						'<strong><%:Connected%>: </strong>%t<br />',
+-						ifc.uptime
+-					);
+-				}
+-
+-				ss.innerHTML = String.format('<small>%s</small>', s);
+-				si.innerHTML = String.format(
+-					'<img src="<%=resource%>/icons/ethernet.png" />' +
+-					'<br /><small><a href="%s">%s</a></small>',
+-						ifc.link, ifc.ifname
+-				);
+-			}
+-			else
+-			{
+-				si.innerHTML = '<img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small>';
+-				ss.innerHTML = '<em><%:Not connected%></em>';
+-			}
+-
+-			<% if has_ipv6 then %>
+-			var si6 = document.getElementById('wan6_i');
+-			var ss6 = document.getElementById('wan6_s');
+-			var ifc6 = info.wan6;
+-
+-			if (ifc6 && ifc6.ifname && ifc6.proto != 'none')
+-			{
+-				var s = String.format(
+-					'<strong><%:Type%>: </strong>%s%s<br />',
+-						ifc6.proto, (ifc6.ip6prefix) ? '-pd' : ''
+-				);
+-				
+-				if (!ifc6.ip6prefix)
+-				{
+-					s += String.format(
+-						'<strong><%:Address%>: </strong>%s<br />',
+-						(ifc6.ip6addr) ? ifc6.ip6addr : '::'
+-					);
+-				}
+-				else
+-				{
+-					s += String.format(
+-						'<strong><%:Prefix Delegated%>: </strong>%s<br />',
+-						ifc6.ip6prefix
+-					);
+-					if (ifc6.ip6addr)
+-					{
+-						s += String.format(
+-							'<strong><%:Address%>: </strong>%s<br />',
+-							ifc6.ip6addr
+-						);
+-					}
+-				}
+-
+-				s += String.format(
+-					'<strong><%:Gateway%>: </strong>%s<br />',
+-						(ifc6.gw6addr) ? ifc6.gw6addr : '::'
+-				);
+-
+-				for (var i = 0; i < ifc6.dns.length; i++)
+-				{
+-					s += String.format(
+-						'<strong><%:DNS%> %d: </strong>%s<br />',
+-						i + 1, ifc6.dns[i]
+-					);
+-				}
+-
+-				if (ifc6.uptime > 0)
+-				{
+-					s += String.format(
+-						'<strong><%:Connected%>: </strong>%t<br />',
+-						ifc6.uptime
+-					);
+-				}
+-
+-				ss6.innerHTML = String.format('<small>%s</small>', s);
+-				si6.innerHTML = String.format(
+-					'<img src="<%=resource%>/icons/ethernet.png" />' +
+-					'<br /><small><a href="%s">%s</a></small>',
+-						ifc6.link, ifc6.ifname
+-				);
+-			}
+-			else
+-			{
+-				si6.innerHTML = '<img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small>';
+-				ss6.innerHTML = '<em><%:Not connected%></em>';
+-			}
+-			<% end %>
+-
+-			<% if has_dsl then %>
+-				var dsl_i = document.getElementById('dsl_i');
+-				var dsl_s = document.getElementById('dsl_s');
+-
+-				var s = String.format(
+-					'<strong><%:Status%>: </strong>%s<br />' +
+-					'<strong><%:Line State%>: </strong>%s [0x%x]<br />' +
+-					'<strong><%:Line Mode%>: </strong>%s<br />' +
+-					'<strong><%:Annex%>: </strong>%s<br />' +
+-					'<strong><%:Profile%>: </strong>%s<br />' +
+-					'<strong><%:Data Rate%>: </strong>%s/s / %s/s<br />' +
+-					'<strong><%:Max. Attainable Data Rate (ATTNDR)%>: </strong>%s/s / %s/s<br />' +
+-					'<strong><%:Latency%>: </strong>%s / %s<br />' +
+-					'<strong><%:Line Attenuation (LATN)%>: </strong>%s dB / %s dB<br />' +
+-					'<strong><%:Signal Attenuation (SATN)%>: </strong>%s dB / %s dB<br />' +
+-					'<strong><%:Noise Margin (SNR)%>: </strong>%s dB / %s dB<br />' +
+-					'<strong><%:Aggregate Transmit Power(ACTATP)%>: </strong>%s dB / %s dB<br />' +
+-					'<strong><%:Forward Error Correction Seconds (FECS)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Errored seconds (ES)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Severely Errored Seconds (SES)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Loss of Signal Seconds (LOSS)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Unavailable Seconds (UAS)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Header Error Code Errors (HEC)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Non Pre-emtive CRC errors (CRC_P)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Pre-emtive CRC errors (CRCP_P)%>: </strong>%s / %s<br />' +
+-					'<strong><%:Line Uptime%>: </strong>%s<br />' +
+-					'<strong><%:ATU-C System Vendor ID%>: </strong>%s<br />' +
+-					'<strong><%:Power Management Mode%>: </strong>%s<br />',
+-						info.dsl.line_state, info.dsl.line_state_detail,
+-						info.dsl.line_state_num,
+-						info.dsl.line_mode_s,
+-						info.dsl.annex_s,
+-						info.dsl.profile_s,
+-						info.dsl.data_rate_down_s, info.dsl.data_rate_up_s,
+-						info.dsl.max_data_rate_down_s, info.dsl.max_data_rate_up_s,
+-						info.dsl.latency_num_down, info.dsl.latency_num_up,
+-						info.dsl.line_attenuation_down, info.dsl.line_attenuation_up,
+-						info.dsl.signal_attenuation_down, info.dsl.signal_attenuation_up,
+-						info.dsl.noise_margin_down, info.dsl.noise_margin_up,
+-						info.dsl.actatp_down, info.dsl.actatp_up,
+-						info.dsl.errors_fec_near, info.dsl.errors_fec_far,
+-						info.dsl.errors_es_near, info.dsl.errors_es_far,
+-						info.dsl.errors_ses_near, info.dsl.errors_ses_far,
+-						info.dsl.errors_loss_near, info.dsl.errors_loss_far,
+-						info.dsl.errors_uas_near, info.dsl.errors_uas_far,
+-						info.dsl.errors_hec_near, info.dsl.errors_hec_far,
+-						info.dsl.errors_crc_p_near, info.dsl.errors_crc_p_far,
+-						info.dsl.errors_crcp_p_near, info.dsl.errors_crcp_p_far,
+-						info.dsl.line_uptime_s,
+-						info.dsl.atuc_vendor_id,
+-						info.dsl.power_mode_s
+-				);
+-
+-				dsl_s.innerHTML = String.format('<small>%s</small>', s);
+-				dsl_i.innerHTML = String.format(
+-					'<img src="<%=resource%>/icons/ethernet.png" />' +
+-					'<br /><small>DSL</small>'
+-				);
+-			<% end %>
+-
+-			<% if has_dhcp then %>
+-			var ls = document.getElementById('lease_status_table');
+-			if (ls)
+-			{
+-				/* clear all rows */
+-				while( ls.rows.length > 1 )
+-					ls.rows[0].parentNode.deleteRow(1);
+-
+-				for( var i = 0; i < info.leases.length; i++ )
+-				{
+-					var timestr;
+-
+-					if (info.leases[i].expires === false)
+-						timestr = '<em><%:unlimited%></em>';
+-					else if (info.leases[i].expires <= 0)
+-						timestr = '<em><%:expired%></em>';
+-					else
+-						timestr = String.format('%t', info.leases[i].expires);
+-
+-					var tr = ls.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row cbi-rowstyle-' + ((i % 2) + 1);
+-
+-					tr.insertCell(-1).innerHTML = info.leases[i].hostname ? info.leases[i].hostname : '?';
+-					tr.insertCell(-1).innerHTML = info.leases[i].ipaddr;
+-					tr.insertCell(-1).innerHTML = info.leases[i].macaddr;
+-					tr.insertCell(-1).innerHTML = timestr;
+-				}
+-
+-				if( ls.rows.length == 1 )
+-				{
+-					var tr = ls.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-						td.colSpan = 4;
+-						td.innerHTML = '<em><br /><%:There are no active leases.%></em>';
+-				}
+-			}
+-
+-			var ls6 = document.getElementById('lease6_status_table');
+-			if (ls6 && info.leases6)
+-			{
+-				ls6.parentNode.style.display = 'block';
+-
+-				/* clear all rows */
+-				while( ls6.rows.length > 1 )
+-					ls6.rows[0].parentNode.deleteRow(1);
+-
+-				for( var i = 0; i < info.leases6.length; i++ )
+-				{
+-					var timestr;
+-
+-					if (info.leases6[i].expires === false)
+-						timestr = '<em><%:unlimited%></em>';
+-					else if (info.leases6[i].expires <= 0)
+-						timestr = '<em><%:expired%></em>';
+-					else
+-						timestr = String.format('%t', info.leases6[i].expires);
+-
+-					var tr = ls6.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row cbi-rowstyle-' + ((i % 2) + 1);
+-
+-					var host = hosts[duid2mac(info.leases6[i].duid)];
+-					if (host)
+-						tr.insertCell(-1).innerHTML = String.format(
+-							'<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis">%s</div>',
+-							((host.name && (host.ipv4 || host.ipv6))
+-								? '%h (%s)'.format(host.name, host.ipv4 || host.ipv6)
+-								: '%h'.format(host.name || host.ipv4 || host.ipv6)).nobr()
+-						);
+-					else
+-						tr.insertCell(-1).innerHTML = info.leases6[i].hostname ? info.leases6[i].hostname : '?';
+-
+-					tr.insertCell(-1).innerHTML = info.leases6[i].ip6addr;
+-					tr.insertCell(-1).innerHTML = info.leases6[i].duid;
+-					tr.insertCell(-1).innerHTML = timestr;
+-				}
+-
+-				if( ls6.rows.length == 1 )
+-				{
+-					var tr = ls6.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-						td.colSpan = 4;
+-						td.innerHTML = '<em><br /><%:There are no active leases.%></em>';
+-				}
+-			}
+-			<% end %>
+-
+-			<% if has_wifi then %>
+-			var assoclist = [ ];
+-
+-			var ws = document.getElementById('wifi_status_table');
+-			if (ws)
+-			{
+-				var wsbody = ws.rows[0].parentNode;
+-				while (ws.rows.length > 0)
+-					wsbody.deleteRow(0);
+-
+-				for (var didx = 0; didx < info.wifinets.length; didx++)
+-				{
+-					var dev = info.wifinets[didx];
+-
+-					var tr = wsbody.insertRow(-1);
+-					var td;
+-
+-					td = tr.insertCell(-1);
+-					td.width     = "33%";
+-					td.innerHTML = dev.name;
+-					td.style.verticalAlign = "top";
+-
+-					td = tr.insertCell(-1);
+-
+-					var s = '';
+-
+-					for (var nidx = 0; nidx < dev.networks.length; nidx++)
+-					{
+-						var net = dev.networks[nidx];
+-						var is_assoc = (net.bssid != '00:00:00:00:00:00' && net.channel && !net.disabled);
+-
+-						var icon;
+-						if (!is_assoc)
+-							icon = "<%=resource%>/icons/signal-none.png";
+-						else if (net.quality == 0)
+-							icon = "<%=resource%>/icons/signal-0.png";
+-						else if (net.quality < 25)
+-							icon = "<%=resource%>/icons/signal-0-25.png";
+-						else if (net.quality < 50)
+-							icon = "<%=resource%>/icons/signal-25-50.png";
+-						else if (net.quality < 75)
+-							icon = "<%=resource%>/icons/signal-50-75.png";
+-						else
+-							icon = "<%=resource%>/icons/signal-75-100.png";
+-
+-						s += String.format(
+-							'<table><tr><td style="text-align:center; width:32px; padding:3px">' +
+-								'<img src="%s" title="<%:Signal%>: %d dBm / <%:Noise%>: %d dBm" />' +
+-								'<br /><small>%d%%</small>' +
+-							'</td><td style="text-align:left; padding:3px"><small>' +
+-								'<strong><%:SSID%>:</strong> <a href="%s">%h</a><br />' +
+-								'<strong><%:Mode%>:</strong> %s<br />' +
+-								'<strong><%:Channel%>:</strong> %d (%.3f <%:GHz%>)<br />' +
+-								'<strong><%:Bitrate%>:</strong> %s <%:Mbit/s%><br />',
+-								icon, net.signal, net.noise,
+-								net.quality,
+-								net.link, net.ssid || '?',
+-								net.mode,
+-								net.channel, net.frequency,
+-								net.bitrate || '?'
+-						);
+-
+-						if (is_assoc)
+-						{
+-							s += String.format(
+-								'<strong><%:BSSID%>:</strong> %s<br />' +
+-								'<strong><%:Encryption%>:</strong> %s',
+-									net.bssid || '?',
+-									net.encryption
+-							);
+-						}
+-						else
+-						{
+-							s += '<em><%:Wireless is disabled or not associated%></em>';
+-						}
+-
+-						s += '</small></td></tr></table>';
+-
+-						for (var bssid in net.assoclist)
+-						{
+-							var bss = net.assoclist[bssid];
+-
+-							bss.bssid  = bssid;
+-							bss.link   = net.link;
+-							bss.name   = net.name;
+-							bss.ifname = net.ifname;
+-							bss.radio  = dev.name;
+-
+-							assoclist.push(bss);
+-						}
+-					}
+-
+-					if (!s)
+-						s = '<em><%:No information available%></em>';
+-
+-					td.innerHTML = s;
+-				}
+-			}
+-
+-			var ac = document.getElementById('wifi_assoc_table');
+-			if (ac)
+-			{
+-				/* clear all rows */
+-				while( ac.rows.length > 1 )
+-					ac.rows[0].parentNode.deleteRow(1);
+-
+-				assoclist.sort(function(a, b) {
+-					return (a.name == b.name)
+-						? (a.bssid < b.bssid)
+-						: (a.name  > b.name )
+-					;
+-				});
+-
+-				for( var i = 0; i < assoclist.length; i++ )
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row cbi-rowstyle-' + (1 + (i % 2));
+-
+-					var icon;
+-					var q = (-1 * (assoclist[i].noise - assoclist[i].signal)) / 5;
+-					if (q < 1)
+-						icon = "<%=resource%>/icons/signal-0.png";
+-					else if (q < 2)
+-						icon = "<%=resource%>/icons/signal-0-25.png";
+-					else if (q < 3)
+-						icon = "<%=resource%>/icons/signal-25-50.png";
+-					else if (q < 4)
+-						icon = "<%=resource%>/icons/signal-50-75.png";
+-					else
+-						icon = "<%=resource%>/icons/signal-75-100.png";
+-
+-					tr.insertCell(-1).innerHTML = String.format(
+-						'<span class="ifacebadge" title="%q"><img src="<%=resource%>/icons/wifi.png" /> %h</span>',
+-						assoclist[i].radio, assoclist[i].ifname
+-					);
+-
+-					tr.insertCell(-1).innerHTML = String.format(
+-						'<a href="%s">%s</a>',
+-							assoclist[i].link,
+-							'%h'.format(assoclist[i].name).nobr()
+-					);
+-
+-					tr.insertCell(-1).innerHTML = assoclist[i].bssid;
+-
+-					var host = hosts[assoclist[i].bssid];
+-					if (host)
+-						tr.insertCell(-1).innerHTML = String.format(
+-							'<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis">%s</div>',
+-							((host.name && (host.ipv4 || host.ipv6))
+-								? '%h (%s)'.format(host.name, host.ipv4 || host.ipv6)
+-								: '%h'.format(host.name || host.ipv4 || host.ipv6)).nobr()
+-						);
+-					else
+-						tr.insertCell(-1).innerHTML = '?';
+-
+-					tr.insertCell(-1).innerHTML = String.format(
+-						'<span class="ifacebadge" title="<%:Signal%>: %d <%:dBm%> / <%:Noise%>: %d <%:dBm%> / <%:SNR%>: %d"><img src="%s" /> %d / %d <%:dBm%></span>',
+-						assoclist[i].signal, assoclist[i].noise, assoclist[i].signal - assoclist[i].noise,
+-						icon,
+-						assoclist[i].signal, assoclist[i].noise
+-					);
+-
+-					tr.insertCell(-1).innerHTML = wifirate(assoclist[i], true).nobr() + '<br />' + wifirate(assoclist[i], false).nobr();
+-				}
+-
+-				if (ac.rows.length == 1)
+-				{
+-					var tr = ac.rows[0].parentNode.insertRow(-1);
+-						tr.className = 'cbi-section-table-row';
+-
+-					var td = tr.insertCell(-1);
+-						td.colSpan = 7;
+-						td.innerHTML = '<br /><em><%:No information available%></em>';
+-				}
+-			}
+-			<% end %>
+-
+-			var e;
+-
+-			if (e = document.getElementById('localtime'))
+-				e.innerHTML = info.localtime;
+-
+-			if (e = document.getElementById('uptime'))
+-				e.innerHTML = String.format('%t', info.uptime);
+-
+-			if (e = document.getElementById('loadavg'))
+-				e.innerHTML = String.format(
+-					'%.02f, %.02f, %.02f',
+-					info.loadavg[0] / 65535.0,
+-					info.loadavg[1] / 65535.0,
+-					info.loadavg[2] / 65535.0
+-				);
+-
+-			if (e = document.getElementById('memtotal'))
+-				e.innerHTML = progressbar(
+-					((info.memory.free + info.memory.buffered) / 1024) + " <%:kB%>",
+-					(info.memory.total / 1024) + " <%:kB%>"
+-				);
+-
+-			if (e = document.getElementById('memfree'))
+-				e.innerHTML = progressbar(
+-					(info.memory.free / 1024) + " <%:kB%>",
+-					(info.memory.total / 1024) + " <%:kB%>"
+-				);
+-
+-			if (e = document.getElementById('membuff'))
+-				e.innerHTML = progressbar(
+-					(info.memory.buffered / 1024) + " <%:kB%>",
+-					(info.memory.total / 1024) + " <%:kB%>"
+-				);
+-
+-			if (e = document.getElementById('swaptotal'))
+-				e.innerHTML = progressbar(
+-					(info.swap.free / 1024) + " <%:kB%>",
+-					(info.swap.total / 1024) + " <%:kB%>"
+-				);
+-
+-			if (e = document.getElementById('swapfree'))
+-				e.innerHTML = progressbar(
+-					(info.swap.free / 1024) + " <%:kB%>",
+-					(info.swap.total / 1024) + " <%:kB%>"
+-				);
+-
+-			if (e = document.getElementById('conns'))
+-				e.innerHTML = progressbar(info.conncount, info.connmax);
+-
+-		}
+-	);
+-//]]></script>
+-
+-<h2 name="content"><%:Status%></h2>
+-
+-<fieldset class="cbi-section">
+-	<legend><%:System%></legend>
+-
+-	<table width="100%" cellspacing="10">
+-		<tr><td width="33%"><%:Hostname%></td><td><%=luci.sys.hostname() or "?"%></td></tr>
+-		<tr><td width="33%"><%:Model%></td><td><%=pcdata(boardinfo.model or boardinfo.system or "?")%></td></tr>
+-		<tr><td width="33%"><%:Firmware Version%></td><td>
+-			<%=pcdata(ver.distname)%> <%=pcdata(ver.distversion)%> /
+-			<%=pcdata(ver.luciname)%> (<%=pcdata(ver.luciversion)%>)
+-		</td></tr>
+-		<tr><td width="33%"><%:Kernel Version%></td><td><%=unameinfo.release or "?"%></td></tr>
+-		<tr><td width="33%"><%:Local Time%></td><td id="localtime">-</td></tr>
+-		<tr><td width="33%"><%:Uptime%></td><td id="uptime">-</td></tr>
+-		<tr><td width="33%"><%:Load Average%></td><td id="loadavg">-</td></tr>
+-	</table>
+-</fieldset>
+-
+-<fieldset class="cbi-section">
+-	<legend><%:Memory%></legend>
+-
+-	<table width="100%" cellspacing="10">
+-		<tr><td width="33%"><%:Total Available%></td><td id="memtotal">-</td></tr>
+-		<tr><td width="33%"><%:Free%></td><td id="memfree">-</td></tr>
+-		<tr><td width="33%"><%:Buffered%></td><td id="membuff">-</td></tr>
+-	</table>
+-</fieldset>
+-
+-<% if swapinfo.total > 0 then %>
+-<fieldset class="cbi-section">
+-	<legend><%:Swap%></legend>
+-
+-	<table width="100%" cellspacing="10">
+-		<tr><td width="33%"><%:Total Available%></td><td id="swaptotal">-</td></tr>
+-		<tr><td width="33%"><%:Free%></td><td id="swapfree">-</td></tr>
+-	</table>
+-</fieldset>
+-<% end %>
+-
+-<fieldset class="cbi-section">
+-	<legend><%:Network%></legend>
+-
+-	<table width="100%" cellspacing="10">
+-		<tr><td width="33%" style="vertical-align:top"><%:IPv4 WAN Status%></td><td>
+-			<table><tr>
+-				<td id="wan4_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
+-				<td id="wan4_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
+-			</tr></table>
+-		</td></tr>
+-		<% if has_ipv6 then %>
+-		<tr><td width="33%" style="vertical-align:top"><%:IPv6 WAN Status%></td><td>
+-			<table><tr>
+-				<td id="wan6_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
+-				<td id="wan6_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
+-			</tr></table>
+-		</td></tr>
+-		<% end %>
+-		<tr><td width="33%"><%:Active Connections%></td><td id="conns">-</td></tr>
+-	</table>
+-</fieldset>
+-
+-<% if has_dhcp then %>
+-<fieldset class="cbi-section">
+-	<legend><%:DHCP Leases%></legend>
+-
+-	<table class="cbi-section-table" id="lease_status_table">
+-		<tr class="cbi-section-table-titles">
+-			<th class="cbi-section-table-cell"><%:Hostname%></th>
+-			<th class="cbi-section-table-cell"><%:IPv4-Address%></th>
+-			<th class="cbi-section-table-cell"><%:MAC-Address%></th>
+-			<th class="cbi-section-table-cell"><%:Leasetime remaining%></th>
+-		</tr>
+-		<tr class="cbi-section-table-row">
+-			<td colspan="4"><em><br /><%:Collecting data...%></em></td>
+-		</tr>
+-	</table>
+-</fieldset>
+-
+-<fieldset class="cbi-section" style="display:none">
+-	<legend><%:DHCPv6 Leases%></legend>
+-
+-	<table class="cbi-section-table" id="lease6_status_table">
+-		<tr class="cbi-section-table-titles">
+-			<th class="cbi-section-table-cell"><%:Host%></th>
+-			<th class="cbi-section-table-cell"><%:IPv6-Address%></th>
+-			<th class="cbi-section-table-cell"><%:DUID%></th>
+-			<th class="cbi-section-table-cell"><%:Leasetime remaining%></th>
+-		</tr>
+-		<tr class="cbi-section-table-row">
+-			<td colspan="4"><em><br /><%:Collecting data...%></em></td>
+-		</tr>
+-	</table>
+-</fieldset>
+-<% end %>
+-
+-<% if has_dsl then %>
+-<fieldset class="cbi-section">
+-       <legend><%:DSL%></legend>
+-       <table width="100%" cellspacing="10">
+-               <tr><td width="33%" style="vertical-align:top"><%:DSL Status%></td><td>
+-                       <table><tr>
+-                               <td id="dsl_i" style="width:16px; text-align:center; padding:3px"><img src="<%=resource%>/icons/ethernet_disabled.png" /><br /><small>?</small></td>
+-                               <td id="dsl_s" style="vertical-align:middle; padding: 3px"><em><%:Collecting data...%></em></td>
+-                       </tr></table>
+-               </td></tr>
+-       </table>
+-</fieldset>
+-<% end %>
+-
+-<% if has_wifi then %>
+-<fieldset class="cbi-section">
+-	<legend><%:Wireless%></legend>
+-
+-	<table id="wifi_status_table" width="100%" cellspacing="10">
+-		<tr><td><em><%:Collecting data...%></em></td></tr>
+-	</table>
+-</fieldset>
+-
+-<fieldset class="cbi-section">
+-	<legend><%:Associated Stations%></legend>
+-
+-	<table class="cbi-section-table valign-middle" id="wifi_assoc_table">
+-		<tr class="cbi-section-table-titles">
+-			<th class="cbi-section-table-cell">&#160;</th>
+-			<th class="cbi-section-table-cell"><%:Network%></th>
+-			<th class="cbi-section-table-cell"><%:MAC-Address%></th>
+-			<th class="cbi-section-table-cell"><%:Host%></th>
+-			<th class="cbi-section-table-cell"><%:Signal%> / <%:Noise%></th>
+-			<th class="cbi-section-table-cell"><%:RX Rate%> / <%:TX Rate%></th>
+-		</tr>
+-		<tr class="cbi-section-table-row">
+-			<td colspan="6"><em><br /><%:Collecting data...%></em></td>
+-		</tr>
+-	</table>
+-</fieldset>
+-<% end %>
+-
+-<%-
+-	local incdir = util.libpath() .. "/view/admin_status/index/"
+-	if fs.access(incdir) then
+-		local inc
+-		for inc in fs.dir(incdir) do
+-			if inc:match("%.htm$") then
+-				include("admin_status/index/" .. inc:gsub("%.htm$", ""))
+-			end
+-		end
+-	end
+--%>
+-
+-<%+footer%>
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.rej feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.rej
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.rej	2017-06-27 13:08:46.199931483 +0500
++++ feeds/luci/modules/luci-mod-admin-full/luasrc/view/admin_status/index.htm.rej	1970-01-01 05:00:00.000000000 +0500
+@@ -1,12 +0,0 @@
+---- index.htm	2017-06-18 13:54:48.000000000 +0500
+-+++ index.htm	2017-06-23 13:19:21.000000000 +0500
+-@@ -788,7 +899,8 @@
+- 
+- <fieldset class="cbi-section">
+- 	<legend><%:Associated Stations%></legend>
+--
+-+	
+-+	<!--
+- 	<table class="cbi-section-table" id="wifi_assoc_table">
+- 		<tr class="cbi-section-table-titles">
+- 			<th class="cbi-section-table-cell">&#160;</th>
+diff -ruN ../kt841lede/feeds/luci/modules/luci-mod-admin-mini/luasrc/model/cbi/mini/wifi.lua feeds/luci/modules/luci-mod-admin-mini/luasrc/model/cbi/mini/wifi.lua
+--- ../kt841lede/feeds/luci/modules/luci-mod-admin-mini/luasrc/model/cbi/mini/wifi.lua	2017-06-27 11:56:55.155931483 +0500
++++ feeds/luci/modules/luci-mod-admin-mini/luasrc/model/cbi/mini/wifi.lua	2017-06-30 10:42:08.299931483 +0500
+@@ -248,7 +248,7 @@
+ 			"and ad-hoc mode) to be installed."
+ 		)
+ 	end
+-elseif hwtype == "broadcom" or  hwtype == "ralink" then
++elseif hwtype == "broadcom" then
+ 	encr:value("psk", "WPA-PSK")
+ 	encr:value("psk2", "WPA2-PSK")
+ 	encr:value("psk+psk2", "WPA-PSK/WPA2-PSK Mixed Mode")
